@@ -1,5 +1,7 @@
 name = "ai-robic"
 compatibility_date = "2026-11-01"
+workers_dev = true
+preview_urls = true
 
 routes = [
   { pattern = "skillprogression.com", custom_domain = true },
