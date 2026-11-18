@@ -62,6 +62,7 @@ export async function syncAthletesToSupabase(athletes: Athlete[]): Promise<boole
       vitals: a.vitals,
       skill_progress: a.skillProgress,
       prescriptions: a.prescriptions,
+      routine_configs: a.routineConfigs || {},
       updated_at: new Date().toISOString(),
     }));
     await supabaseFetch('ai_robic_athletes?on_conflict=id', {

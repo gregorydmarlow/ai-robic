@@ -628,6 +628,20 @@ export function App() {
             meetActuals={meetActuals}
             showDevIds={showDevIds}
             onSaveMeetActual={handleSaveMeetActual}
+            onUpdateAthleteRoutineConfig={(athId, appId, cfg) => {
+              setAthletes((prev) =>
+                prev.map((a) => {
+                  if (a.id !== athId) return a;
+                  return {
+                    ...a,
+                    routineConfigs: {
+                      ...(a.routineConfigs || {}),
+                      [appId]: cfg,
+                    },
+                  };
+                })
+              );
+            }}
           />
         )}
 

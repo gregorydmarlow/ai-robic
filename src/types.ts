@@ -50,6 +50,21 @@ export interface Skill {
   }[];
   commonFaultTags: string[];
   recommendedDrillIds: string[];
+  // Compulsory Bonus vs Optional Custom Repertoire metadata
+  routineCategory?: 'compulsory_core' | 'compulsory_bonus' | 'optional_repertoire';
+  isBonusOption?: boolean;
+  bonusPoints?: number; // e.g. +0.10 or +0.20 Virtuosity / Connection Bonus
+  replacesSkillId?: string; // e.g. Cast to Handstand (+Bonus) upgrades Cast to Horizontal
+  difficultyRating?: 'A' | 'B' | 'C' | 'D';
+  specialRequirementTag?: string; // e.g. "SR1: Bar Change", "SR2: Flight/Bonus Element", "SR3: 180° Split Leap", "SR4: Salto Dismount"
+}
+
+export interface AthleteEventRoutineConfig {
+  apparatusId: string;
+  routineMode: 'compulsory' | 'optional';
+  selectedSkillIds: string[]; // Ordered sequence of skills in this athlete's routine
+  optedInBonusSkillIds: string[]; // Compulsory Bonus / Virtuosity upgrades this athlete is attempting!
+  customChoreoNotes?: string;
 }
 
 export interface AthleteVitals {
@@ -209,4 +224,5 @@ export interface Athlete {
   archetypeSummary: string;
   skillProgress: Record<string, SkillProgressEntry>;
   prescriptions: HomePrescriptionItem[];
+  routineConfigs?: Record<string, AthleteEventRoutineConfig>;
 }
