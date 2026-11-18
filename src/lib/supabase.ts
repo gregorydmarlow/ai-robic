@@ -1,4 +1,11 @@
-import { AIJudgeSession, Athlete, CorrectiveDrill, Skill } from '../types';
+import {
+  AIJudgeSession,
+  Athlete,
+  CorrectiveDrill,
+  FacilityConfig,
+  MeetActualRecord,
+  Skill,
+} from '../types';
 
 /**
  * AI-ROBIC Supabase Cloud Sync & Offline-First Persistence Adapter
@@ -99,20 +106,78 @@ export async function syncAIJudgeSessionToSupabase(session: AIJudgeSession): Pro
   }
 }
 
+export async function syncFacilityConfigToSupabase(config: FacilityConfig): Promise<boolean> {
+  if (!isSupabaseConfigured()) return false;
+  try {
+    await supabaseFetch('ai_robic_facility_config?on_conflict=id', {
+      method: 'POST',
+      body: JSON.stringify([
+        {
+          id: config.id || 'default-facility',
+          facility_name: config.facilityName,
+          head_coach_name: config.headCoachName,
+          active_disciplines: config.activeDisciplines,
+          active_levels: config.activeLevels,
+          rotation_count: config.rotationCount,
+          updated_at: new Date().toISOString(),
+        },
+      ]),
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function syncMeetActualsToSupabase(records: MeetActualRecord[]): Promise<boolean> {
+  if (!isSupabaseConfigured() || records.length === 0) return false;
+  try {
+    const rows = records.map((r) => ({
+      id: r.id,
+      athlete_id: r.athleteId,
+      apparatus_id: r.apparatusId,
+      meet_name: r.meetName,
+      meet_date: r.meetDate,
+      level: r.level,
+      start_value: r.startValue,
+      actual_score: r.actualScore,
+      ai_predicted_score: r.aiPredictedScore,
+      judge_name_or_panel: r.judgeNameOrPanel,
+      judge_general_notes: r.judgeGeneralNotes,
+      skill_breakdowns: r.skillBreakdowns,
+    }));
+    await supabaseFetch('ai_robic_meet_actuals?on_conflict=id', {
+      method: 'POST',
+      body: JSON.stringify(rows),
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function seedFullDatabaseToSupabase(
   athletes: Athlete[],
   skills: Skill[],
   drills: CorrectiveDrill[],
-  sessions: AIJudgeSession[]
+  sessions: AIJudgeSession[],
+  facilityConfig?: FacilityConfig,
+  meetActuals?: MeetActualRecord[]
 ): Promise<{ ok: boolean; message: string }> {
   try {
     await syncAthletesToSupabase(athletes);
     for (const s of sessions) {
       await syncAIJudgeSessionToSupabase(s);
     }
+    if (facilityConfig) {
+      await syncFacilityConfigToSupabase(facilityConfig);
+    }
+    if (meetActuals && meetActuals.length > 0) {
+      await syncMeetActualsToSupabase(meetActuals);
+    }
     return {
       ok: true,
-      message: `Synced ${athletes.length} athletes, ${skills.length} skills, ${drills.length} drills, and ${sessions.length} AI Judge sessions to Supabase schema ai_robic!`,
+      message: `Synced ${athletes.length} athletes, ${skills.length} skills, ${drills.length} drills, ${sessions.length} AI Judge sessions & ${meetActuals?.length || 0} Meet Actuals to Supabase schema ai_robic!`,
     };
   } catch (e) {
     return {

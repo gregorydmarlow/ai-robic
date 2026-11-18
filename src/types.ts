@@ -84,12 +84,50 @@ export interface SkillProgressEntry {
   activeFaultTags: string[];
   assignedDrillIds: string[];
   bestAiScore?: number;
+  compActualStatus?: 'comp_verified' | 'comp_alert' | 'untested';
+  lastCompDeduction?: number;
+  lastCompJudgeNote?: string;
   history: {
     date: string;
     stage: MasteryStage;
     note: string;
     coachName: string;
   }[];
+}
+
+export interface FacilityConfig {
+  id: string;
+  facilityName: string;
+  headCoachName: string;
+  activeDisciplines: DisciplineId[];
+  activeLevels: string[];
+  rotationCount: number;
+}
+
+export interface MeetSkillActualItem {
+  skillId: string;
+  skillName: string;
+  usagCode: string;
+  valuePart: string;
+  practiceStage: MasteryStage;
+  deductionTaken: number; // e.g., 0.00 (Hit Clean), 0.10, 0.20, 0.30, 0.50 (Fall)
+  judgeShorthandNote: string;
+  status: 'hit_clean' | 'minor_break' | 'major_break';
+}
+
+export interface MeetActualRecord {
+  id: string;
+  athleteId: string;
+  apparatusId: string;
+  meetName: string;
+  meetDate: string;
+  level: string;
+  startValue: number;
+  actualScore: number;
+  aiPredictedScore: number;
+  judgeNameOrPanel: string;
+  judgeGeneralNotes: string;
+  skillBreakdowns: MeetSkillActualItem[];
 }
 
 export interface HomePrescriptionItem {

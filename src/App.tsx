@@ -5,7 +5,9 @@ import {
   AthleteVitals,
   CorrectiveDrill,
   DisciplineId,
+  FacilityConfig,
   MasteryStage,
+  MeetActualRecord,
   RotationGroupId,
   Skill,
 } from './types';
@@ -14,6 +16,8 @@ import {
   CORRECTIVE_DRILLS,
   INITIAL_AI_JUDGE_SESSIONS,
   INITIAL_ATHLETES,
+  INITIAL_FACILITY_CONFIG,
+  INITIAL_MEET_ACTUALS,
   SKILLS_CATALOG,
   STAGE_DEFINITIONS,
 } from './mockData';
@@ -22,34 +26,48 @@ import { VitalsDrawerModal } from './components/VitalsDrawerModal';
 import { SkillPrescriptionDrawer } from './components/SkillPrescriptionDrawer';
 import { ParentAthletePortal } from './components/ParentAthletePortal';
 import { CurriculumBuilderView } from './components/CurriculumBuilderView';
+import { OnboardingSetupView } from './components/OnboardingSetupView';
+import { MeetActualsAndSheetsView } from './components/MeetActualsAndSheetsView';
 import {
   isSupabaseConfigured,
   seedFullDatabaseToSupabase,
   syncAIJudgeSessionToSupabase,
   syncAthletesToSupabase,
+  syncFacilityConfigToSupabase,
+  syncMeetActualsToSupabase,
 } from './lib/supabase';
 import {
   Activity,
   AlertTriangle,
   Award,
+  Building2,
   CheckCircle2,
   Clock,
   Cloud,
+  Code2,
   Cpu,
   Dumbbell,
   Flame,
   Layers,
   Mic,
+  Printer,
   RefreshCw,
   RotateCw,
   Ruler,
+  ShieldAlert,
   Sparkles,
   Tablet,
+  Trophy,
   Users,
   Video,
 } from 'lucide-react';
 
-type ActiveWorkspaceTab = 'coach_floor' | 'parent_portal' | 'curriculum_admin';
+type ActiveWorkspaceTab =
+  | 'onboarding_setup'
+  | 'coach_floor'
+  | 'meet_actuals'
+  | 'parent_portal'
+  | 'curriculum_admin';
 
 const ROTATION_ORDER: RotationGroupId[] = ['A', 'B', 'C', 'D'];
 
@@ -73,6 +91,15 @@ export function App() {
     const saved = localStorage.getItem('apexgym_ai_sessions_v1');
     return saved ? JSON.parse(saved) : INITIAL_AI_JUDGE_SESSIONS;
   });
+  const [facilityConfig, setFacilityConfig] = useState<FacilityConfig>(() => {
+    const saved = localStorage.getItem('airobic_facility_v1');
+    return saved ? JSON.parse(saved) : INITIAL_FACILITY_CONFIG;
+  });
+  const [meetActuals, setMeetActuals] = useState<MeetActualRecord[]>(() => {
+    const saved = localStorage.getItem('airobic_meet_actuals_v1');
+    return saved ? JSON.parse(saved) : INITIAL_MEET_ACTUALS;
+  });
+  const [showDevIds, setShowDevIds] = useState<boolean>(false);
 
   // Station-First Floor Cockpit state
   const disciplineApparatus = APPARATUS_LIST.filter((a) => a.disciplineId === disciplineId);
@@ -112,10 +139,60 @@ export function App() {
     localStorage.setItem('apexgym_ai_sessions_v1', JSON.stringify(aiSessions));
   }, [aiSessions]);
 
+  useEffect(() => {
+    localStorage.setItem('airobic_facility_v1', JSON.stringify(facilityConfig));
+    if (isSupabaseConfigured()) {
+      syncFacilityConfigToSupabase(facilityConfig);
+    }
+  }, [facilityConfig]);
+
+  useEffect(() => {
+    localStorage.setItem('airobic_meet_actuals_v1', JSON.stringify(meetActuals));
+    if (isSupabaseConfigured()) {
+      syncMeetActualsToSupabase(meetActuals);
+    }
+  }, [meetActuals]);
+
   const handleManualCloudSync = async () => {
-    const res = await seedFullDatabaseToSupabase(athletes, skills, drills, aiSessions);
+    const res = await seedFullDatabaseToSupabase(
+      athletes,
+      skills,
+      drills,
+      aiSessions,
+      facilityConfig,
+      meetActuals
+    );
     setCloudSyncStatus(res.message);
     setTimeout(() => setCloudSyncStatus(null), 4000);
+  };
+
+  const handleSaveMeetActual = (newRec: MeetActualRecord) => {
+    setMeetActuals((prev) => [newRec, ...prev]);
+    // Automatically flag any skill on the athlete's Floor Cockpit that had >= 0.20 deduction
+    setAthletes((prev) =>
+      prev.map((a) => {
+        if (a.id !== newRec.athleteId) return a;
+        const nextProgress = { ...a.skillProgress };
+        newRec.skillBreakdowns.forEach((b) => {
+          const existing = nextProgress[b.skillId] || {
+            skillId: b.skillId,
+            stage: b.practiceStage,
+            lastUpdated: newRec.meetDate,
+            coachNote: '',
+            activeFaultTags: [],
+            assignedDrillIds: [],
+            history: [],
+          };
+          nextProgress[b.skillId] = {
+            ...existing,
+            compActualStatus: b.deductionTaken >= 0.2 ? 'comp_alert' : 'comp_verified',
+            lastCompDeduction: b.deductionTaken,
+            lastCompJudgeNote: b.judgeShorthandNote,
+          };
+        });
+        return { ...a, skillProgress: nextProgress };
+      })
+    );
   };
 
   // Live floor rotation countdown timer
@@ -388,11 +465,11 @@ export function App() {
                   AI-<span className="text-cyan-400">ROBIC</span>
                 </span>
                 <span className="hidden sm:inline-block px-2 py-0.5 rounded bg-cyan-500/15 border border-cyan-500/30 text-[10px] font-mono text-cyan-300 font-bold">
-                  BIOMECHANICS + AI JUDGE
+                  {facilityConfig.facilityName.toUpperCase()}
                 </span>
               </div>
               <p className="text-[11px] text-slate-400 hidden sm:block">
-                iOS/Android Tablet Ready · Vitals Prescription Engine · USAG Digital Judge
+                {facilityConfig.headCoachName} · Biomechanics & USAG AI Judge
               </p>
             </div>
           </div>
@@ -400,56 +477,93 @@ export function App() {
           {/* Primary Role / Workspace Switcher */}
           <nav
             aria-label="Primary Workspace Switcher"
-            className="flex items-center bg-slate-900/90 p-1 rounded-xl border border-slate-800"
+            className="flex flex-wrap items-center bg-slate-900/90 p-1 rounded-xl border border-slate-800"
           >
             <button
+              onClick={() => setActiveTab('onboarding_setup')}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition ${
+                activeTab === 'onboarding_setup'
+                  ? 'bg-gradient-to-r from-cyan-400 to-sky-500 text-slate-950 shadow-md'
+                  : 'text-slate-300 hover:text-white'
+              }`}
+            >
+              <Building2 className="w-3.5 h-3.5" />
+              Gym Setup & Roster
+            </button>
+
+            <button
               onClick={() => setActiveTab('coach_floor')}
-              className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-bold transition ${
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition ${
                 activeTab === 'coach_floor'
                   ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-slate-950 shadow-md'
                   : 'text-slate-300 hover:text-white'
               }`}
             >
-              <Tablet className="w-4 h-4" />
-              Coach Floor Cockpit (Tablet)
+              <Tablet className="w-3.5 h-3.5" />
+              Floor Cockpit
+            </button>
+
+            <button
+              onClick={() => setActiveTab('meet_actuals')}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition ${
+                activeTab === 'meet_actuals'
+                  ? 'bg-gradient-to-r from-amber-400 to-orange-500 text-slate-950 shadow-md'
+                  : 'text-slate-300 hover:text-white'
+              }`}
+            >
+              <Trophy className="w-3.5 h-3.5" />
+              Meet Actuals & Judge Sheets
             </button>
 
             <button
               onClick={() => setActiveTab('parent_portal')}
-              className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-bold transition ${
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition ${
                 activeTab === 'parent_portal'
                   ? 'bg-gradient-to-r from-emerald-400 to-teal-500 text-slate-950 shadow-md'
                   : 'text-slate-300 hover:text-white'
               }`}
             >
-              <Award className="w-4 h-4" />
-              Parent & Athlete Portal
+              <Award className="w-3.5 h-3.5" />
+              Parent Portal
             </button>
 
             <button
               onClick={() => setActiveTab('curriculum_admin')}
-              className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-bold transition ${
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition ${
                 activeTab === 'curriculum_admin'
                   ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-md'
                   : 'text-slate-300 hover:text-white'
               }`}
             >
-              <Layers className="w-4 h-4" />
-              Curriculum & Sports
+              <Layers className="w-3.5 h-3.5" />
+              Curriculum
             </button>
           </nav>
 
-          {/* Right Quick Actions: AI Digital Judge Studio & Class Roster */}
+          {/* Right Quick Actions: AI Digital Judge Studio, Dev Section IDs & Class Roster */}
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowDevIds(!showDevIds)}
+              className={`inline-flex items-center gap-1.5 px-2.5 py-2 rounded-xl border text-xs font-mono font-bold transition ${
+                showDevIds
+                  ? 'bg-fuchsia-500/25 border-fuchsia-400 text-fuchsia-200'
+                  : 'bg-slate-900 border-slate-700 text-slate-400 hover:text-white'
+              }`}
+              title="Toggle Section IDs so you can tell the AI agent exactly which section ID to edit"
+            >
+              <Code2 className="w-3.5 h-3.5" />
+              {showDevIds ? 'IDs: ON' : 'IDs'}
+            </button>
+
             <button
               onClick={() => {
                 setAiJudgeInitialSessionId(undefined);
                 setIsAIJudgeOpen(true);
               }}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-500/20 hover:bg-indigo-500/30 border border-indigo-500/50 text-indigo-200 text-xs font-bold transition"
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-indigo-500/20 hover:bg-indigo-500/30 border border-indigo-500/50 text-indigo-200 text-xs font-bold transition"
             >
               <Cpu className="w-4 h-4 text-cyan-400" />
-              AI Digital Judge Studio
+              <span className="hidden sm:inline">AI Digital Judge</span>
             </button>
 
             <button
@@ -482,10 +596,50 @@ export function App() {
 
       {/* Main Content Container */}
       <main className="flex-1 max-w-[1600px] w-full mx-auto px-4 lg:px-6 pt-5">
+        {activeTab === 'onboarding_setup' && (
+          <OnboardingSetupView
+            facilityConfig={facilityConfig}
+            athletes={athletes}
+            showDevIds={showDevIds}
+            onSaveOnboarding={(newCfg, updatedAthletes) => {
+              setFacilityConfig(newCfg);
+              setAthletes(updatedAthletes);
+              if (newCfg.activeDisciplines.length > 0) {
+                setDisciplineId(newCfg.activeDisciplines[0]);
+              }
+              setActiveTab('coach_floor');
+            }}
+            onResetToDemoRoster={() => {
+              setFacilityConfig(INITIAL_FACILITY_CONFIG);
+              setAthletes(INITIAL_ATHLETES);
+              setMeetActuals(INITIAL_MEET_ACTUALS);
+            }}
+          />
+        )}
+
+        {activeTab === 'meet_actuals' && (
+          <MeetActualsAndSheetsView
+            facilityConfig={facilityConfig}
+            athletes={athletes}
+            selectedAthleteId={selectedAthleteId}
+            onSelectAthlete={(id) => setSelectedAthleteId(id)}
+            apparatusList={APPARATUS_LIST}
+            skills={skills}
+            meetActuals={meetActuals}
+            showDevIds={showDevIds}
+            onSaveMeetActual={handleSaveMeetActual}
+          />
+        )}
+
         {activeTab === 'coach_floor' && (
           <div className="space-y-5 pb-12">
-            {/* Top Station & Rotation Group Control Bar */}
-            <div className="p-4 rounded-2xl bg-[#0B1120] border border-slate-800 shadow-lg flex flex-wrap items-center justify-between gap-4">
+            {/* Top Station & Rotation Group Control Bar [SEC-101] */}
+            <div className="relative p-4 rounded-2xl bg-[#0B1120] border border-slate-800 shadow-lg flex flex-wrap items-center justify-between gap-4">
+              {showDevIds && (
+                <span className="absolute -top-2.5 right-3 px-2 py-0.5 rounded bg-fuchsia-500 text-slate-950 font-mono text-[10px] font-black shadow">
+                  [SEC-101: Station & Rotation Bar]
+                </span>
+              )}
               {/* Apparatus Station Selector Pills */}
               <div className="flex flex-wrap items-center gap-2">
                 <div className="mr-1">
@@ -581,7 +735,12 @@ export function App() {
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
               {/* Left 4 Columns: Athletes Currently at This Apparatus + Vitals Snapshot */}
               <div className="lg:col-span-4 space-y-4">
-                <div className="p-4 rounded-2xl bg-[#0B1120] border border-slate-800 shadow-lg">
+                <div className="relative p-4 rounded-2xl bg-[#0B1120] border border-slate-800 shadow-lg">
+                  {showDevIds && (
+                    <span className="absolute -top-2.5 right-3 px-2 py-0.5 rounded bg-fuchsia-500 text-slate-950 font-mono text-[10px] font-black shadow">
+                      [SEC-102: Station Athlete Roster Rail]
+                    </span>
+                  )}
                   <div className="flex items-center justify-between mb-3">
                     <div>
                       <span className="text-[10px] font-mono uppercase text-amber-400 font-bold">
@@ -676,7 +835,12 @@ export function App() {
 
                 {/* Active Athlete Biomechanical & Vitals Card on the Floor */}
                 {activeAthlete && (
-                  <div className="p-4 rounded-2xl bg-gradient-to-br from-slate-900 via-[#0B1120] to-indigo-950/60 border border-slate-800 shadow-lg space-y-3">
+                  <div className="relative p-4 rounded-2xl bg-gradient-to-br from-slate-900 via-[#0B1120] to-indigo-950/60 border border-slate-800 shadow-lg space-y-3">
+                    {showDevIds && (
+                      <span className="absolute -top-2.5 right-3 px-2 py-0.5 rounded bg-fuchsia-500 text-slate-950 font-mono text-[10px] font-black shadow">
+                        [SEC-103: Athlete Vitals Card]
+                      </span>
+                    )}
                     <div className="flex items-center justify-between">
                       <div>
                         <span className="text-[10px] font-mono uppercase text-cyan-400 font-bold">
@@ -726,7 +890,12 @@ export function App() {
 
               {/* Right 8 Columns: Apparatus Skill Matrix, 1-Tap Stage Grading, Voice Notes & AI Digital Judge */}
               <div className="lg:col-span-8 space-y-4">
-                <div className="p-5 rounded-2xl bg-[#0B1120] border border-slate-800 shadow-lg">
+                <div className="relative p-5 rounded-2xl bg-[#0B1120] border border-slate-800 shadow-lg">
+                  {showDevIds && (
+                    <span className="absolute -top-2.5 right-3 px-2 py-0.5 rounded bg-fuchsia-500 text-slate-950 font-mono text-[10px] font-black shadow">
+                      [SEC-104: Apparatus Skill Matrix & 1-Tap Grading]
+                    </span>
+                  )}
                   {/* Athlete Station Header */}
                   <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-slate-800">
                     <div>
@@ -784,6 +953,21 @@ export function App() {
                                 {prog?.bestAiScore && (
                                   <span className="px-2 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-mono text-[11px] font-bold">
                                     AI Judge: {prog.bestAiScore.toFixed(2)}
+                                  </span>
+                                )}
+                                {prog?.compActualStatus === 'comp_alert' && (
+                                  <button
+                                    onClick={() => setActiveTab('meet_actuals')}
+                                    className="px-2 py-0.5 rounded bg-red-500/20 border border-red-500/50 text-red-300 font-mono text-[11px] font-bold flex items-center gap-1 hover:bg-red-500/30 transition"
+                                    title={prog.lastCompJudgeNote || 'Competition break logged'}
+                                  >
+                                    <ShieldAlert className="w-3 h-3 text-red-400" />
+                                    Comp Break (-{(prog.lastCompDeduction || 0.25).toFixed(2)})
+                                  </button>
+                                )}
+                                {prog?.compActualStatus === 'comp_verified' && (
+                                  <span className="px-2 py-0.5 rounded bg-amber-500/20 border border-amber-500/40 text-amber-300 font-mono text-[11px] font-bold">
+                                    ✓ Comp Hit
                                   </span>
                                 )}
                               </div>

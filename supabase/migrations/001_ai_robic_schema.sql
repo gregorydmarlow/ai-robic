@@ -103,3 +103,32 @@ create policy "Allow public access to corrective_drills" on public.corrective_dr
 create policy "Allow public access to skills" on public.skills for all using (true) with check (true);
 create policy "Allow public access to athletes" on public.athletes for all using (true) with check (true);
 create policy "Allow public access to ai_judge_sessions" on public.ai_judge_sessions for all using (true) with check (true);
+
+-- 6. Facility & Class Onboarding Configuration (in dedicated ai_robic schema)
+create table if not exists ai_robic.facility_config (
+  id text primary key default 'default-facility',
+  facility_name text not null default 'Apex Gymnastics Academy',
+  head_coach_name text not null default 'Coach Elena Vance',
+  active_disciplines jsonb not null default '["WAG","MAG"]'::jsonb,
+  active_levels jsonb not null default '["Level 3","Level 4","Level 5"]'::jsonb,
+  rotation_count integer not null default 4,
+  updated_at timestamptz not null default now()
+);
+
+-- 7. Competition Actuals & Official Judge Routine Sheets (in dedicated ai_robic schema)
+create table if not exists ai_robic.meet_actuals (
+  id text primary key,
+  athlete_id text not null references ai_robic.athletes(id) on delete cascade,
+  apparatus_id text not null,
+  meet_name text not null,
+  meet_date text not null,
+  level text not null,
+  start_value numeric(4,2) not null default 10.00,
+  actual_score numeric(4,2) not null default 9.00,
+  ai_predicted_score numeric(4,2) not null default 9.35,
+  judge_name_or_panel text not null default 'USAG 2-Judge Panel',
+  judge_general_notes text not null default '',
+  skill_breakdowns jsonb not null default '[]'::jsonb,
+  created_at timestamptz not null default now()
+);
+
