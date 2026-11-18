@@ -1,0 +1,1 @@
+{"root":["./src/app.tsx","./src/main.tsx","./src/mockdata.ts","./src/types.ts","./src/vite-env.d.ts","./src/components/aijudgemodal.tsx","./src/components/curriculumbuilderview.tsx","./src/components/parentathleteportal.tsx","./src/components/skillprescriptiondrawer.tsx","./src/components/vitalsdrawermodal.tsx","./src/lib/supabase.ts"],"version":"5.6.3"}

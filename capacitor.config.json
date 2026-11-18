@@ -1,0 +1,14 @@
+{
+  "appId": "app.airobic.gym",
+  "appName": "AI-ROBIC",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https",
+    "iosScheme": "https"
+  },
+  "plugins": {
+    "Camera": {
+      "presentationStyle": "fullscreen"
+    }
+  }
+}
