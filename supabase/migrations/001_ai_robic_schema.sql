@@ -132,3 +132,42 @@ create table if not exists ai_robic.meet_actuals (
   created_at timestamptz not null default now()
 );
 
+-- 8. Role-Based User Accounts (Owner, Coach, Athlete, Parent)
+create table if not exists ai_robic.user_accounts (
+  id text primary key,
+  email text not null unique,
+  full_name text not null,
+  role text not null check (role in ('owner', 'coach', 'athlete', 'parent')),
+  facility_id text not null default 'default-facility',
+  facility_name text not null default 'Apex Gymnastics Academy',
+  assigned_athlete_ids jsonb not null default '[]'::jsonb,
+  assigned_groups jsonb not null default '[]'::jsonb,
+  avatar_initials text not null default 'U',
+  avatar_gradient text not null default 'from-cyan-500 to-blue-600',
+  title_badge text not null default '',
+  created_at timestamptz not null default now()
+);
+
+-- 9. USAG Manual Skill Encyclopedia (All Compulsory & Optional A-E Elements)
+create table if not exists ai_robic.usag_skill_encyclopedia (
+  id text primary key,
+  discipline_id text not null check (discipline_id in ('WAG', 'MAG', 'CHEER_TNT')),
+  apparatus_id text not null,
+  usag_code text not null,
+  skill_name text not null,
+  aliases jsonb not null default '[]'::jsonb,
+  level_range text not null,
+  difficulty_value text not null,
+  element_group text not null,
+  special_requirement_credit text not null,
+  reference_video_url text not null,
+  video_keyframe_cues jsonb not null default '[]'::jsonb,
+  training_tips jsonb not null default '[]'::jsonb,
+  common_mistakes_and_deductions jsonb not null default '[]'::jsonb,
+  biomechanical_vitals_notes text not null,
+  prerequisite_skill_ids jsonb not null default '[]'::jsonb,
+  progression_next_skill_ids jsonb not null default '[]'::jsonb,
+  created_at timestamptz not null default now()
+);
+
+

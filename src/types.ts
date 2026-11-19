@@ -223,6 +223,32 @@ export interface UserPersonaAccount {
   titleBadge: string;
 }
 
+export interface USAGEncyclopediaMistakeItem {
+  fault: string;
+  deduction: string;
+  fix: string;
+}
+
+export interface USAGEncyclopediaSkillEntry {
+  id: string;
+  disciplineId: DisciplineId;
+  apparatusId: string;
+  usagCode: string;
+  skillName: string;
+  aliases: string[];
+  levelRange: string; // e.g., "Levels 1–5 (Compulsory)", "Levels 6–8 (Optional)", "Levels 9–10 / Elite"
+  difficultyValue: 'Compulsory' | 'A' | 'B' | 'C' | 'D' | 'E';
+  elementGroup: string;
+  specialRequirementCredit: string;
+  referenceVideoUrl: string;
+  videoKeyframeCues: string[];
+  trainingTips: string[];
+  commonMistakesAndDeductions: USAGEncyclopediaMistakeItem[];
+  biomechanicalVitalsNotes: string;
+  prerequisiteSkillNames: string[];
+  progressionNextSkillNames: string[];
+}
+
 export interface Athlete {
   id: string;
   name: string;

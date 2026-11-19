@@ -10,6 +10,7 @@ import {
   MeetActualRecord,
   RotationGroupId,
   Skill,
+  USAGEncyclopediaSkillEntry,
   UserPersonaAccount,
 } from './types';
 import {
@@ -19,6 +20,7 @@ import {
   INITIAL_ATHLETES,
   INITIAL_FACILITY_CONFIG,
   INITIAL_MEET_ACTUALS,
+  INITIAL_USAG_ENCYCLOPEDIA,
   INITIAL_USER_PERSONAS,
   SKILLS_CATALOG,
   STAGE_DEFINITIONS,
@@ -31,11 +33,13 @@ import { CurriculumBuilderView } from './components/CurriculumBuilderView';
 import { OnboardingSetupView } from './components/OnboardingSetupView';
 import { MeetActualsAndSheetsView } from './components/MeetActualsAndSheetsView';
 import { LoginPortalView } from './components/LoginPortalView';
+import { USAGSkillEncyclopediaView } from './components/USAGSkillEncyclopediaView';
 import {
   isSupabaseConfigured,
   seedFullDatabaseToSupabase,
   syncAIJudgeSessionToSupabase,
   syncAthletesToSupabase,
+  syncEncyclopediaEntryToSupabase,
   syncFacilityConfigToSupabase,
   syncMeetActualsToSupabase,
 } from './lib/supabase';
@@ -43,6 +47,7 @@ import {
   Activity,
   AlertTriangle,
   Award,
+  BookOpen,
   Building2,
   CheckCircle2,
   Clock,
@@ -71,6 +76,7 @@ type ActiveWorkspaceTab =
   | 'onboarding_setup'
   | 'coach_floor'
   | 'meet_actuals'
+  | 'usag_encyclopedia'
   | 'parent_portal'
   | 'curriculum_admin';
 
@@ -108,6 +114,12 @@ export function App() {
     const saved = localStorage.getItem('airobic_current_user_v1');
     return saved ? JSON.parse(saved) : null;
   });
+  const [encyclopediaEntries, setEncyclopediaEntries] = useState<USAGEncyclopediaSkillEntry[]>(
+    () => {
+      const saved = localStorage.getItem('airobic_usag_encyclopedia_v1');
+      return saved ? JSON.parse(saved) : INITIAL_USAG_ENCYCLOPEDIA;
+    }
+  );
   const [showDevIds, setShowDevIds] = useState<boolean>(false);
 
   // Station-First Floor Cockpit state
@@ -169,6 +181,10 @@ export function App() {
       localStorage.removeItem('airobic_current_user_v1');
     }
   }, [currentUser]);
+
+  useEffect(() => {
+    localStorage.setItem('airobic_usag_encyclopedia_v1', JSON.stringify(encyclopediaEntries));
+  }, [encyclopediaEntries]);
 
   // Compute Role-Scoped Athletes for the logged-in persona
   const permittedAthletes: Athlete[] = React.useMemo(() => {
@@ -588,6 +604,20 @@ export function App() {
               >
                 <Trophy className="w-3.5 h-3.5" />
                 Meet Actuals & Judge Sheets
+              </button>
+            )}
+
+            {(isOwner || isCoach || isAthlete) && (
+              <button
+                onClick={() => setActiveTab('usag_encyclopedia')}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition ${
+                  activeTab === 'usag_encyclopedia'
+                    ? 'bg-gradient-to-r from-sky-400 to-indigo-500 text-slate-950 shadow-md'
+                    : 'text-slate-300 hover:text-white'
+                }`}
+              >
+                <BookOpen className="w-3.5 h-3.5" />
+                USAG Encyclopedia ({encyclopediaEntries.length})
               </button>
             )}
 
@@ -1180,6 +1210,76 @@ export function App() {
               </div>
             </div>
           </div>
+        )}
+
+        {activeTab === 'usag_encyclopedia' && (isOwner || isCoach || isAthlete) && (
+          <USAGSkillEncyclopediaView
+            encyclopediaEntries={encyclopediaEntries}
+            apparatusList={APPARATUS_LIST}
+            athletes={permittedAthletes}
+            selectedAthleteId={selectedAthleteId}
+            onSelectAthlete={(id) => setSelectedAthleteId(id)}
+            viewerRole={currentUser.role}
+            showDevIds={showDevIds}
+            onAddEncyclopediaSkillToAthleteRoutine={(athId, entry) => {
+              const newSkillId = `skill-enc-${entry.id}`;
+              // Add to active skills catalog if not already present
+              setSkills((prev) => {
+                if (prev.some((s) => s.id === newSkillId || s.usagCode === entry.usagCode)) {
+                  return prev;
+                }
+                const mapped: Skill = {
+                  id: newSkillId,
+                  disciplineId: entry.disciplineId,
+                  level: 'Level 4',
+                  apparatusId: entry.apparatusId,
+                  name: entry.skillName,
+                  usagCode: entry.usagCode,
+                  valuePart: `${entry.difficultyValue} Value Part · ${entry.specialRequirementCredit}`,
+                  biomechanicalFocus: entry.trainingTips[0] || entry.biomechanicalVitalsNotes,
+                  idealAngles: [
+                    { joint: 'USAG Benchmark Alignment', targetDegrees: 180, toleranceDegrees: 5 },
+                  ],
+                  commonFaultTags: entry.commonMistakesAndDeductions.map((m) => m.fault),
+                  recommendedDrillIds: ['drill-butcher-block', 'drill-hollow-rockers'],
+                  routineCategory: 'optional_repertoire',
+                  difficultyRating:
+                    entry.difficultyValue === 'Compulsory' || entry.difficultyValue === 'E'
+                      ? 'D'
+                      : entry.difficultyValue,
+                  specialRequirementTag: entry.specialRequirementCredit,
+                };
+                return [...prev, mapped];
+              });
+
+              // Also add to the selected athlete's skillProgress at Stage 1 (Introduced)
+              setAthletes((prev) =>
+                prev.map((a) => {
+                  if (a.id !== athId) return a;
+                  if (a.skillProgress[newSkillId]) return a;
+                  return {
+                    ...a,
+                    skillProgress: {
+                      ...a.skillProgress,
+                      [newSkillId]: {
+                        skillId: newSkillId,
+                        stage: 1,
+                        lastUpdated: '2026-11-19',
+                        coachNote: `Added from USAG Encyclopedia (${entry.usagCode}). ${entry.biomechanicalVitalsNotes}`,
+                        activeFaultTags: [],
+                        assignedDrillIds: ['drill-hollow-rockers'],
+                        history: [],
+                      },
+                    },
+                  };
+                })
+              );
+            }}
+            onAddNewEncyclopediaEntry={(newEntry) => {
+              setEncyclopediaEntries((prev) => [newEntry, ...prev]);
+              syncEncyclopediaEntryToSupabase(newEntry);
+            }}
+          />
         )}
 
         {activeTab === 'parent_portal' && (

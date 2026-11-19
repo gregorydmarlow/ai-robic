@@ -5,6 +5,7 @@ import {
   FacilityConfig,
   MeetActualRecord,
   Skill,
+  USAGEncyclopediaSkillEntry,
 } from '../types';
 
 /**
@@ -150,6 +151,41 @@ export async function syncMeetActualsToSupabase(records: MeetActualRecord[]): Pr
     await supabaseFetch('ai_robic_meet_actuals?on_conflict=id', {
       method: 'POST',
       body: JSON.stringify(rows),
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function syncEncyclopediaEntryToSupabase(
+  entry: USAGEncyclopediaSkillEntry
+): Promise<boolean> {
+  if (!isSupabaseConfigured()) return false;
+  try {
+    await supabaseFetch('ai_robic_usag_skill_encyclopedia?on_conflict=id', {
+      method: 'POST',
+      body: JSON.stringify([
+        {
+          id: entry.id,
+          discipline_id: entry.disciplineId,
+          apparatus_id: entry.apparatusId,
+          usag_code: entry.usagCode,
+          skill_name: entry.skillName,
+          aliases: entry.aliases,
+          level_range: entry.levelRange,
+          difficulty_value: entry.difficultyValue,
+          element_group: entry.elementGroup,
+          special_requirement_credit: entry.specialRequirementCredit,
+          reference_video_url: entry.referenceVideoUrl,
+          video_keyframe_cues: entry.videoKeyframeCues,
+          training_tips: entry.trainingTips,
+          common_mistakes_and_deductions: entry.commonMistakesAndDeductions,
+          biomechanical_vitals_notes: entry.biomechanicalVitalsNotes,
+          prerequisite_skill_ids: entry.prerequisiteSkillNames,
+          progression_next_skill_ids: entry.progressionNextSkillNames,
+        },
+      ]),
     });
     return true;
   } catch {
