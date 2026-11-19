@@ -84,7 +84,10 @@ const ROTATION_ORDER: RotationGroupId[] = ['A', 'B', 'C', 'D'];
 
 export function App() {
   // Persistent state initialized from rich USAG seed data
-  const [activeTab, setActiveTab] = useState<ActiveWorkspaceTab>('coach_floor');
+  const [activeTab, setActiveTab] = useState<ActiveWorkspaceTab>(() => {
+    const savedTab = localStorage.getItem('airobic_active_tab_v1') as ActiveWorkspaceTab | null;
+    return savedTab || 'coach_floor';
+  });
   const [disciplineId, setDisciplineId] = useState<DisciplineId>('WAG');
   const [athletes, setAthletes] = useState<Athlete[]>(() => {
     const saved = localStorage.getItem('apexgym_athletes_v1');
@@ -141,6 +144,10 @@ export function App() {
   const [cloudSyncStatus, setCloudSyncStatus] = useState<string | null>(null);
 
   // Sync changes to localStorage & Supabase Cloud (when configured)
+  useEffect(() => {
+    localStorage.setItem('airobic_active_tab_v1', activeTab);
+  }, [activeTab]);
+
   useEffect(() => {
     localStorage.setItem('apexgym_athletes_v1', JSON.stringify(athletes));
     if (isSupabaseConfigured()) {
@@ -554,8 +561,13 @@ export function App() {
                 </span>
               </div>
               <p className="text-[11px] text-slate-400 hidden sm:block">
-                Signed in: <strong className="text-slate-200">{currentUser.fullName}</strong> (
-                {currentUser.role.toUpperCase()}) · {permittedAthletes.length} Visible Athlete(s)
+                Active Role:{' '}
+                <strong className="text-slate-200">
+                  {currentUser.role === 'owner'
+                    ? 'OPERATOR'
+                    : currentUser.role.toUpperCase()}
+                </strong>{' '}
+                · {permittedAthletes.length} Visible Athlete(s)
               </p>
             </div>
           </div>
@@ -662,10 +674,12 @@ export function App() {
             >
               <LogOut className="w-3.5 h-3.5 text-cyan-400" />
               <span>
-                {currentUser.role.toUpperCase()}: {currentUser.fullName.split(' ')[0]}
+                {currentUser.role === 'owner'
+                  ? 'OPERATOR'
+                  : currentUser.role.toUpperCase()}
               </span>
               <span className="text-[10px] font-mono text-slate-400 underline ml-1">
-                Switch Role
+                Sign Out
               </span>
             </button>
 
