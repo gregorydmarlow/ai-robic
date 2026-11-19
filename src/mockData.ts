@@ -7,6 +7,7 @@ import {
   AIJudgeSession,
   FacilityConfig,
   MeetActualRecord,
+  UserPersonaAccount,
 } from './types';
 
 export const STAGE_DEFINITIONS: StageDefinition[] = [
@@ -1366,6 +1367,81 @@ export const INITIAL_FACILITY_CONFIG: FacilityConfig = {
   activeLevels: ['Level 3', 'Level 4', 'Level 5'],
   rotationCount: 4,
 };
+
+export const INITIAL_USER_PERSONAS: UserPersonaAccount[] = [
+  {
+    id: 'usr-owner-1',
+    email: 'owner@skillprogression.com',
+    fullName: 'Gregory Marlow',
+    role: 'owner',
+    facilityId: 'default-facility',
+    facilityName: 'Apex Gymnastics Academy',
+    assignedAthleteIds: [
+      'ath-maya',
+      'ath-chloe',
+      'ath-sienna',
+      'ath-zoe',
+      'ath-harper',
+      'ath-leo',
+    ],
+    assignedGroups: ['A', 'B', 'C', 'D'],
+    avatarInitials: 'GM',
+    avatarGradient: 'from-amber-400 to-orange-600',
+    titleBadge: 'Gym Owner & Program Director (All 6 Facility Athletes)',
+  },
+  {
+    id: 'usr-coach-elena',
+    email: 'elena@skillprogression.com',
+    fullName: 'Coach Elena Vance',
+    role: 'coach',
+    facilityId: 'default-facility',
+    facilityName: 'Apex Gymnastics Academy',
+    assignedAthleteIds: ['ath-maya', 'ath-chloe', 'ath-sienna'],
+    assignedGroups: ['A'],
+    avatarInitials: 'EV',
+    avatarGradient: 'from-cyan-500 to-blue-600',
+    titleBadge: 'WAG Team Coach (Assigned Group A Roster: Maya, Chloe, Sienna)',
+  },
+  {
+    id: 'usr-coach-marcus',
+    email: 'marcus@skillprogression.com',
+    fullName: 'Coach Marcus Chen',
+    role: 'coach',
+    facilityId: 'default-facility',
+    facilityName: 'Apex Gymnastics Academy',
+    assignedAthleteIds: ['ath-zoe', 'ath-harper', 'ath-leo'],
+    assignedGroups: ['B', 'C'],
+    avatarInitials: 'MC',
+    avatarGradient: 'from-indigo-500 to-purple-600',
+    titleBadge: 'WAG/MAG Team Coach (Assigned Groups B & C: Zoe, Harper, Leo)',
+  },
+  {
+    id: 'usr-athlete-maya',
+    email: 'maya@skillprogression.com',
+    fullName: 'Maya Lin',
+    role: 'athlete',
+    facilityId: 'default-facility',
+    facilityName: 'Apex Gymnastics Academy',
+    assignedAthleteIds: ['ath-maya'],
+    assignedGroups: ['A'],
+    avatarInitials: 'ML',
+    avatarGradient: 'from-cyan-500 to-blue-600',
+    titleBadge: 'WAG Level 4 Gymnast (My Progress Report & Home Plan)',
+  },
+  {
+    id: 'usr-parent-lin',
+    email: 'sarah.lin@example.com',
+    fullName: 'David & Sarah Lin',
+    role: 'parent',
+    facilityId: 'default-facility',
+    facilityName: 'Apex Gymnastics Academy',
+    assignedAthleteIds: ['ath-maya', 'ath-zoe'],
+    assignedGroups: [],
+    avatarInitials: 'SL',
+    avatarGradient: 'from-emerald-500 to-teal-600',
+    titleBadge: 'Parent Account (2 Linked Gymnasts: Maya Lin & Zoe Alvarez)',
+  },
+];
 
 export const INITIAL_MEET_ACTUALS: MeetActualRecord[] = [
   {

@@ -10,6 +10,7 @@ import {
   MeetActualRecord,
   RotationGroupId,
   Skill,
+  UserPersonaAccount,
 } from './types';
 import {
   APPARATUS_LIST,
@@ -18,6 +19,7 @@ import {
   INITIAL_ATHLETES,
   INITIAL_FACILITY_CONFIG,
   INITIAL_MEET_ACTUALS,
+  INITIAL_USER_PERSONAS,
   SKILLS_CATALOG,
   STAGE_DEFINITIONS,
 } from './mockData';
@@ -28,6 +30,7 @@ import { ParentAthletePortal } from './components/ParentAthletePortal';
 import { CurriculumBuilderView } from './components/CurriculumBuilderView';
 import { OnboardingSetupView } from './components/OnboardingSetupView';
 import { MeetActualsAndSheetsView } from './components/MeetActualsAndSheetsView';
+import { LoginPortalView } from './components/LoginPortalView';
 import {
   isSupabaseConfigured,
   seedFullDatabaseToSupabase,
@@ -49,6 +52,7 @@ import {
   Dumbbell,
   Flame,
   Layers,
+  LogOut,
   Mic,
   Printer,
   RefreshCw,
@@ -58,6 +62,7 @@ import {
   Sparkles,
   Tablet,
   Trophy,
+  UserCheck,
   Users,
   Video,
 } from 'lucide-react';
@@ -98,6 +103,10 @@ export function App() {
   const [meetActuals, setMeetActuals] = useState<MeetActualRecord[]>(() => {
     const saved = localStorage.getItem('airobic_meet_actuals_v1');
     return saved ? JSON.parse(saved) : INITIAL_MEET_ACTUALS;
+  });
+  const [currentUser, setCurrentUser] = useState<UserPersonaAccount | null>(() => {
+    const saved = localStorage.getItem('airobic_current_user_v1');
+    return saved ? JSON.parse(saved) : null;
   });
   const [showDevIds, setShowDevIds] = useState<boolean>(false);
 
@@ -152,6 +161,46 @@ export function App() {
       syncMeetActualsToSupabase(meetActuals);
     }
   }, [meetActuals]);
+
+  useEffect(() => {
+    if (currentUser) {
+      localStorage.setItem('airobic_current_user_v1', JSON.stringify(currentUser));
+    } else {
+      localStorage.removeItem('airobic_current_user_v1');
+    }
+  }, [currentUser]);
+
+  // Compute Role-Scoped Athletes for the logged-in persona
+  const permittedAthletes: Athlete[] = React.useMemo(() => {
+    if (!currentUser || currentUser.role === 'owner') {
+      return athletes;
+    }
+    const filtered = athletes.filter((a) => currentUser.assignedAthleteIds.includes(a.id));
+    return filtered.length > 0 ? filtered : athletes.slice(0, 1);
+  }, [athletes, currentUser]);
+
+  const handlePersonaLogin = (account: UserPersonaAccount) => {
+    setCurrentUser(account);
+    if (account.role === 'parent' || account.role === 'athlete') {
+      setActiveTab('parent_portal');
+      const firstId = account.assignedAthleteIds[0];
+      if (firstId) setSelectedAthleteId(firstId);
+    } else if (account.role === 'coach') {
+      setActiveTab('coach_floor');
+      const firstId = account.assignedAthleteIds[0];
+      if (firstId) {
+        setSelectedAthleteId(firstId);
+        const firstAth = athletes.find((a) => a.id === firstId);
+        if (firstAth) {
+          setDisciplineId(firstAth.disciplineId);
+          const firstApp = APPARATUS_LIST.find((ap) => ap.disciplineId === firstAth.disciplineId);
+          if (firstApp) setSelectedApparatusId(firstApp.id);
+        }
+      }
+    } else {
+      setActiveTab('coach_floor');
+    }
+  };
 
   const handleManualCloudSync = async () => {
     const res = await seedFullDatabaseToSupabase(
@@ -220,19 +269,20 @@ export function App() {
 
   const activeStationGroup = getGroupAtApparatus(selectedApparatusId);
 
-  // Filter athletes currently at the selected station
-  const stationAthletes = athletes.filter((a) => {
+  // Filter athletes currently at the selected station (scoped to logged-in Owner or Coach)
+  const stationAthletes = permittedAthletes.filter((a) => {
     if (a.disciplineId !== disciplineId) return false;
     if (!a.checkedIn) return false;
-    if (showAllCheckedInAtStation) return true;
+    // If logged in as a coach, always show their assigned athletes at the station (or filter by group when toggled)
+    if (showAllCheckedInAtStation || currentUser?.role === 'coach') return true;
     return a.rotationGroup === activeStationGroup;
   });
 
   const activeAthlete =
     stationAthletes.find((a) => a.id === selectedAthleteId) ||
-    athletes.find((a) => a.id === selectedAthleteId) ||
+    permittedAthletes.find((a) => a.id === selectedAthleteId) ||
     stationAthletes[0] ||
-    athletes[0];
+    permittedAthletes[0];
 
   const currentApparatus =
     disciplineApparatus.find((a) => a.id === selectedApparatusId) || disciplineApparatus[0];
@@ -449,6 +499,25 @@ export function App() {
     );
   };
 
+  // If no user persona is logged in, render the Role-Based Login Portal
+  if (!currentUser) {
+    return (
+      <LoginPortalView
+        personas={INITIAL_USER_PERSONAS}
+        athletes={athletes}
+        facilityConfig={facilityConfig}
+        showDevIds={showDevIds}
+        onLoginSuccess={handlePersonaLogin}
+      />
+    );
+  }
+
+  const isOwner = currentUser.role === 'owner';
+  const isCoach = currentUser.role === 'coach';
+  const isAthlete = currentUser.role === 'athlete';
+  const isParent = currentUser.role === 'parent';
+  const isPortalLockedRole = isAthlete || isParent;
+
   return (
     <div className="min-h-screen bg-[#080C14] text-slate-100 flex flex-col">
       {/* Top Global Navigation Bar */}
@@ -469,51 +538,58 @@ export function App() {
                 </span>
               </div>
               <p className="text-[11px] text-slate-400 hidden sm:block">
-                {facilityConfig.headCoachName} · Biomechanics & USAG AI Judge
+                Signed in: <strong className="text-slate-200">{currentUser.fullName}</strong> (
+                {currentUser.role.toUpperCase()}) · {permittedAthletes.length} Visible Athlete(s)
               </p>
             </div>
           </div>
 
-          {/* Primary Role / Workspace Switcher */}
+          {/* Primary Role / Workspace Switcher (Scoped strictly by Persona Permissions) */}
           <nav
             aria-label="Primary Workspace Switcher"
             className="flex flex-wrap items-center bg-slate-900/90 p-1 rounded-xl border border-slate-800"
           >
-            <button
-              onClick={() => setActiveTab('onboarding_setup')}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition ${
-                activeTab === 'onboarding_setup'
-                  ? 'bg-gradient-to-r from-cyan-400 to-sky-500 text-slate-950 shadow-md'
-                  : 'text-slate-300 hover:text-white'
-              }`}
-            >
-              <Building2 className="w-3.5 h-3.5" />
-              Gym Setup & Roster
-            </button>
+            {isOwner && (
+              <button
+                onClick={() => setActiveTab('onboarding_setup')}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition ${
+                  activeTab === 'onboarding_setup'
+                    ? 'bg-gradient-to-r from-cyan-400 to-sky-500 text-slate-950 shadow-md'
+                    : 'text-slate-300 hover:text-white'
+                }`}
+              >
+                <Building2 className="w-3.5 h-3.5" />
+                Gym Setup & Roster
+              </button>
+            )}
 
-            <button
-              onClick={() => setActiveTab('coach_floor')}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition ${
-                activeTab === 'coach_floor'
-                  ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-slate-950 shadow-md'
-                  : 'text-slate-300 hover:text-white'
-              }`}
-            >
-              <Tablet className="w-3.5 h-3.5" />
-              Floor Cockpit
-            </button>
+            {(isOwner || isCoach) && (
+              <button
+                onClick={() => setActiveTab('coach_floor')}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition ${
+                  activeTab === 'coach_floor'
+                    ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-slate-950 shadow-md'
+                    : 'text-slate-300 hover:text-white'
+                }`}
+              >
+                <Tablet className="w-3.5 h-3.5" />
+                Floor Cockpit ({permittedAthletes.length})
+              </button>
+            )}
 
-            <button
-              onClick={() => setActiveTab('meet_actuals')}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition ${
-                activeTab === 'meet_actuals'
-                  ? 'bg-gradient-to-r from-amber-400 to-orange-500 text-slate-950 shadow-md'
-                  : 'text-slate-300 hover:text-white'
-              }`}
-            >
-              <Trophy className="w-3.5 h-3.5" />
-              Meet Actuals & Judge Sheets
-            </button>
+            {(isOwner || isCoach) && (
+              <button
+                onClick={() => setActiveTab('meet_actuals')}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition ${
+                  activeTab === 'meet_actuals'
+                    ? 'bg-gradient-to-r from-amber-400 to-orange-500 text-slate-950 shadow-md'
+                    : 'text-slate-300 hover:text-white'
+                }`}
+              >
+                <Trophy className="w-3.5 h-3.5" />
+                Meet Actuals & Judge Sheets
+              </button>
+            )}
 
             <button
               onClick={() => setActiveTab('parent_portal')}
@@ -524,24 +600,45 @@ export function App() {
               }`}
             >
               <Award className="w-3.5 h-3.5" />
-              Parent Portal
+              {isAthlete
+                ? 'My Progress Report'
+                : isParent
+                ? `Parent Portal (${permittedAthletes.length} Linked)`
+                : 'Parent Portal'}
             </button>
 
-            <button
-              onClick={() => setActiveTab('curriculum_admin')}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition ${
-                activeTab === 'curriculum_admin'
-                  ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-md'
-                  : 'text-slate-300 hover:text-white'
-              }`}
-            >
-              <Layers className="w-3.5 h-3.5" />
-              Curriculum
-            </button>
+            {isOwner && (
+              <button
+                onClick={() => setActiveTab('curriculum_admin')}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition ${
+                  activeTab === 'curriculum_admin'
+                    ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-md'
+                    : 'text-slate-300 hover:text-white'
+                }`}
+              >
+                <Layers className="w-3.5 h-3.5" />
+                Curriculum
+              </button>
+            )}
           </nav>
 
-          {/* Right Quick Actions: AI Digital Judge Studio, Dev Section IDs & Class Roster */}
+          {/* Right Quick Actions: Persona Switcher, AI Digital Judge Studio, Dev Section IDs & Class Roster */}
           <div className="flex items-center gap-2">
+            {/* Active Persona Pill + Quick Switch / Sign Out */}
+            <button
+              onClick={() => setCurrentUser(null)}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-cyan-500/40 text-xs font-bold text-cyan-300 transition"
+              title="Switch Persona or Sign Out to Login Screen"
+            >
+              <LogOut className="w-3.5 h-3.5 text-cyan-400" />
+              <span>
+                {currentUser.role.toUpperCase()}: {currentUser.fullName.split(' ')[0]}
+              </span>
+              <span className="text-[10px] font-mono text-slate-400 underline ml-1">
+                Switch Role
+              </span>
+            </button>
+
             <button
               onClick={() => setShowDevIds(!showDevIds)}
               className={`inline-flex items-center gap-1.5 px-2.5 py-2 rounded-xl border text-xs font-mono font-bold transition ${
@@ -555,16 +652,18 @@ export function App() {
               {showDevIds ? 'IDs: ON' : 'IDs'}
             </button>
 
-            <button
-              onClick={() => {
-                setAiJudgeInitialSessionId(undefined);
-                setIsAIJudgeOpen(true);
-              }}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-indigo-500/20 hover:bg-indigo-500/30 border border-indigo-500/50 text-indigo-200 text-xs font-bold transition"
-            >
-              <Cpu className="w-4 h-4 text-cyan-400" />
-              <span className="hidden sm:inline">AI Digital Judge</span>
-            </button>
+            {!isPortalLockedRole && (
+              <button
+                onClick={() => {
+                  setAiJudgeInitialSessionId(undefined);
+                  setIsAIJudgeOpen(true);
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-indigo-500/20 hover:bg-indigo-500/30 border border-indigo-500/50 text-indigo-200 text-xs font-bold transition"
+              >
+                <Cpu className="w-4 h-4 text-cyan-400" />
+                <span className="hidden sm:inline">AI Digital Judge</span>
+              </button>
+            )}
 
             <button
               onClick={handleManualCloudSync}
@@ -577,14 +676,16 @@ export function App() {
               </span>
             </button>
 
-            <button
-              onClick={() => setShowRosterCheckInModal(true)}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 text-xs font-semibold transition"
-            >
-              <Users className="w-4 h-4 text-emerald-400" />
-              <span className="hidden md:inline">Class Check-In</span> (
-              {athletes.filter((a) => a.checkedIn).length})
-            </button>
+            {(isOwner || isCoach) && (
+              <button
+                onClick={() => setShowRosterCheckInModal(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 text-xs font-semibold transition"
+              >
+                <Users className="w-4 h-4 text-emerald-400" />
+                <span className="hidden md:inline">Check-In</span> (
+                {permittedAthletes.filter((a) => a.checkedIn).length})
+              </button>
+            )}
           </div>
         </div>
         {cloudSyncStatus && (
@@ -617,10 +718,10 @@ export function App() {
           />
         )}
 
-        {activeTab === 'meet_actuals' && (
+        {activeTab === 'meet_actuals' && (isOwner || isCoach) && (
           <MeetActualsAndSheetsView
             facilityConfig={facilityConfig}
-            athletes={athletes}
+            athletes={permittedAthletes}
             selectedAthleteId={selectedAthleteId}
             onSelectAthlete={(id) => setSelectedAthleteId(id)}
             apparatusList={APPARATUS_LIST}
@@ -1083,7 +1184,7 @@ export function App() {
 
         {activeTab === 'parent_portal' && (
           <ParentAthletePortal
-            athletes={athletes}
+            athletes={permittedAthletes}
             selectedAthleteId={selectedAthleteId}
             onSelectAthlete={(id) => setSelectedAthleteId(id)}
             apparatusList={APPARATUS_LIST}
@@ -1096,6 +1197,8 @@ export function App() {
               setAiJudgeInitialSkillId(skId);
               setIsAIJudgeOpen(true);
             }}
+            viewerRole={currentUser.role}
+            facilityName={facilityConfig.facilityName}
           />
         )}
 
@@ -1176,7 +1279,7 @@ export function App() {
             </div>
 
             <div className="space-y-2.5 max-h-96 overflow-y-auto">
-              {athletes.map((ath) => (
+              {permittedAthletes.map((ath) => (
                 <div
                   key={ath.id}
                   className="p-3 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between gap-3"

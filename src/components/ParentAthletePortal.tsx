@@ -5,6 +5,7 @@ import {
   Athlete,
   CorrectiveDrill,
   Skill,
+  UserPersonaRole,
 } from '../types';
 import { STAGE_DEFINITIONS } from '../mockData';
 import {
@@ -34,6 +35,8 @@ interface ParentAthletePortalProps {
   aiSessions: AIJudgeSession[];
   onToggleHomeDrillCompletion: (athleteId: string, prescriptionId: string) => void;
   onOpenAIJudgeReplay: (sessionId: string, skillId?: string) => void;
+  viewerRole?: UserPersonaRole;
+  facilityName?: string;
 }
 
 export const ParentAthletePortal: React.FC<ParentAthletePortalProps> = ({
@@ -46,6 +49,8 @@ export const ParentAthletePortal: React.FC<ParentAthletePortalProps> = ({
   aiSessions,
   onToggleHomeDrillCompletion,
   onOpenAIJudgeReplay,
+  viewerRole = 'parent',
+  facilityName = 'Apex Gymnastics Academy',
 }) => {
   const athlete = athletes.find((a) => a.id === selectedAthleteId) || athletes[0];
   const [selectedEventFilter, setSelectedEventFilter] = useState<string>('ALL');
@@ -95,7 +100,9 @@ export const ParentAthletePortal: React.FC<ParentAthletePortalProps> = ({
             <div>
               <div className="flex flex-wrap items-center gap-2">
                 <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-semibold">
-                  Parent & Athlete Transparency Portal
+                  {viewerRole === 'athlete'
+                    ? `${facilityName} · My Athlete Progress Report`
+                    : `${facilityName} · Parent & Guardian Transparency Portal`}
                 </span>
                 <span className="px-2.5 py-0.5 rounded-full bg-cyan-500/20 border border-cyan-500/40 text-cyan-300 text-xs font-mono font-bold">
                   {athlete.disciplineId} · {athlete.level}
@@ -112,23 +119,27 @@ export const ParentAthletePortal: React.FC<ParentAthletePortalProps> = ({
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            <div>
-              <label className="block text-[10px] font-mono uppercase text-slate-400 mb-1">
-                Preview Athlete Portal For:
-              </label>
-              <select
-                aria-label="Preview Athlete Portal"
-                value={athlete.id}
-                onChange={(e) => onSelectAthlete(e.target.value)}
-                className="bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs font-bold text-white focus:outline-none focus:border-cyan-400"
-              >
-                {athletes.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.name} ({a.disciplineId} {a.level})
-                  </option>
-                ))}
-              </select>
-            </div>
+            {athletes.length > 1 && (
+              <div>
+                <label className="block text-[10px] font-mono uppercase text-slate-400 mb-1">
+                  {viewerRole === 'parent'
+                    ? `Switch Linked Child (${athletes.length} Athletes):`
+                    : 'Preview Athlete Portal For:'}
+                </label>
+                <select
+                  aria-label="Preview Athlete Portal"
+                  value={athlete.id}
+                  onChange={(e) => onSelectAthlete(e.target.value)}
+                  className="bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs font-bold text-white focus:outline-none focus:border-cyan-400"
+                >
+                  {athletes.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.name} ({a.disciplineId} {a.level})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             <button
               onClick={() => setShowReportCardModal(true)}

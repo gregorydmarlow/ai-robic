@@ -207,6 +207,22 @@ export interface AIJudgeSession {
 
 export type RotationGroupId = 'A' | 'B' | 'C' | 'D';
 
+export type UserPersonaRole = 'owner' | 'coach' | 'athlete' | 'parent';
+
+export interface UserPersonaAccount {
+  id: string;
+  email: string;
+  fullName: string;
+  role: UserPersonaRole;
+  facilityId: string;
+  facilityName: string;
+  assignedAthleteIds: string[]; // For owner: all; For coach: assigned athletes; For athlete: [selfId]; For parent: [child1, child2...]
+  assignedGroups: RotationGroupId[];
+  avatarInitials: string;
+  avatarGradient: string;
+  titleBadge: string;
+}
+
 export interface Athlete {
   id: string;
   name: string;
